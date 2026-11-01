@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Experiment 10: Convex Hull (Divide &amp; Conquer and Graham Scan) | DAA Lab</title><link rel="stylesheet" href="../style.css"></head>
+<body><header class="top"><a class="brand" href="../index.html">DAA Lab</a><button id="theme" aria-label="Toggle theme">◐</button></header>
+<main class="wrap"><p class="crumb"><a href="../index.html">Home</a> / Experiment 10</p>
+<h1><span class="num">10</span> Convex Hull (Divide &amp; Conquer and Graham Scan)</h1>
+<section class="card "><h2>Aim</h2><p>Given N distinct points in a 2-D plane, to find the Convex Hull (the smallest convex polygon that contains all the points inside or on its boundary) using (A) the Divide and Conquer technique and (B) the Graham Scan algorithm, and to display the hull points in counter-clockwise order.</p></section>
+<section class="card "><h2>Algorithm</h2><h3>A. Divide and Conquer (QuickHull)</h3><ol><li>Find the leftmost point A and the rightmost point B. Both always lie on the hull.</li><li>Line A–B divides the points into a lower set (right of A→B) and an upper set (right of B→A).</li><li>DIVIDE: for a set and an edge P→Q, find the point C farthest from the line PQ. C is a hull vertex.</li><li>Discard the points inside triangle P-C-Q. Split the rest into the points outside P→C and outside C→Q.</li><li>CONQUER: recursively find the hull for (P, C) and (C, Q). Stop when a set is empty.</li><li>Output A, lower-hull points, B, upper-hull points. This is the counter-clockwise order.</li></ol>
+<h3>B. Graham Scan</h3><ol><li>Pick the lowest point (leftmost if tied) as the anchor p0.</li><li>Sort all other points by polar angle around p0 (nearer point first if the angle is equal).</li><li>If several points have the same angle, keep only the farthest one.</li><li>Push the first three points on a stack.</li><li>For every next point p: while the last two stack points and p do not make a left (counter-clockwise) turn, pop the stack. Then push p.</li><li>The stack now holds the hull in counter-clockwise order.</li></ol>
+<h3>Orientation test used in both</h3><p class="rec">cross(o,a,b) = (a.x-o.x)(b.y-o.y) - (a.y-o.y)(b.x-o.x)  &gt; 0 : left turn, &lt; 0 : right turn, = 0 : collinear</p></section>
+<section class="card "><h2>Code</h2><div class="codehead"><span>Part A: Divide and Conquer (q10a.c)</span><button class="copy">Copy</button></div><pre><code class="lang-c">#include&lt;stdio.h&gt;
+
+typedef struct { int x, y; } Point;
+
+Point hull[100];                            /* result, filled in counter-clockwise order */
+int m=0;
+
+long cross(Point o, Point a, Point b){
+    return (long)(a.x-o.x)*(b.y-o.y) - (long)(a.y-o.y)*(b.x-o.x);
+}
+
+long dist2(Point a, Point b){
+    return (long)(a.x-b.x)*(a.x-b.x) + (long)(a.y-b.y)*(a.y-b.y);
+}
+
+/* DIVIDE: among the points lying strictly to the right of P-&gt;Q,
+   find the farthest point C. C is a hull vertex. It splits the
+   problem into two smaller ones: (P,C) and (C,Q). */
+void findHull(Point pts[], int n, Point P, Point Q){
+    if(n==0) return;
+
+    int c=-1;
+    for(int i=0;i&lt;n;i++){
+        if(cross(P,Q,pts[i])&lt;0){
+            if(c==-1 || cross(P,Q,pts[i])&lt;cross(P,Q,pts[c]) ||
+               (cross(P,Q,pts[i])==cross(P,Q,pts[c]) &amp;&amp; dist2(P,pts[i])&gt;dist2(P,pts[c])))
+                c=i;
+        }
+    }
+    if(c==-1) return;                       /* no point outside edge P-&gt;Q */
+    Point C=pts[c];
+
+    /* split the remaining points into those outside P-&gt;C and outside C-&gt;Q */
+    Point s1[100], s2[100];
+    int n1=0, n2=0;
+    for(int i=0;i&lt;n;i++){
+        if(cross(P,C,pts[i])&lt;0) s1[n1++]=pts[i];
+        else if(cross(C,Q,pts[i])&lt;0) s2[n2++]=pts[i];
+    }
+
+    /* CONQUER: solve both halves, C goes in between (keeps CCW order) */
+    findHull(s1,n1,P,C);
+    hull[m++]=C;
+    findHull(s2,n2,C,Q);
+}
+
+int main(){
+    Point p[]={{0,3},{1,1},{2,2},{4,4},{0,0},{1,2},{3,1},{3,3}};
+    int n=sizeof(p)/sizeof(p[0]);
+
+    /* leftmost (A) and rightmost (B) points are always on the hull */
+    int a=0, b=0;
+    for(int i=1;i&lt;n;i++){
+        if(p[i].x&lt;p[a].x || (p[i].x==p[a].x &amp;&amp; p[i].y&lt;p[a].y)) a=i;
+        if(p[i].x&gt;p[b].x || (p[i].x==p[b].x &amp;&amp; p[i].y&gt;p[b].y)) b=i;
+    }
+    Point A=p[a], B=p[b];
+
+    /* line A-B divides the points into a lower set and an upper set */
+    hull[m++]=A;
+    findHull(p,n,A,B);                      /* lower hull : A -&gt; B */
+    hull[m++]=B;
+    findHull(p,n,B,A);                      /* upper hull : B -&gt; A */
+
+    /* start printing from the lowest (then leftmost) point */
+    int s=0;
+    for(int i=1;i&lt;m;i++)
+        if(hull[i].y&lt;hull[s].y || (hull[i].y==hull[s].y &amp;&amp; hull[i].x&lt;hull[s].x)) s=i;
+
+    printf(&quot;Convex Hull (Divide and Conquer), counter-clockwise:\n&quot;);
+    for(int i=0;i&lt;m;i++){
+        Point q=hull[(s+i)%m];
+        printf(&quot;(%d, %d)\n&quot;,q.x,q.y);
+    }
+    return 0;
+}
+</code></pre><br><div class="codehead"><span>Part B: Graham Scan (q10b.c)</span><button class="copy">Copy</button></div><pre><code class="lang-c">#include&lt;stdio.h&gt;
+#include&lt;stdlib.h&gt;
+
+typedef struct { int x, y; } Point;
+Point p0;                                   /* anchor (lowest) point */
+
+long cross(Point o, Point a, Point b){
+    return (long)(a.x-o.x)*(b.y-o.y) - (long)(a.y-o.y)*(b.x-o.x);
+}
+
+long dist2(Point a, Point b){
+    return (long)(a.x-b.x)*(a.x-b.x) + (long)(a.y-b.y)*(a.y-b.y);
+}
+
+/* sort by polar angle around p0 (counter-clockwise); nearer first on ties */
+int cmp(const void *p, const void *q){
+    Point a=*(Point*)p, b=*(Point*)q;
+    long c=cross(p0,a,b);
+    if(c==0) return dist2(p0,a)&lt;dist2(p0,b) ? -1 : 1;
+    return c&gt;0 ? -1 : 1;
+}
+
+int main(){
+    Point p[]={{0,3},{1,1},{2,2},{4,4},{0,0},{1,2},{3,1},{3,3}};
+    int n=sizeof(p)/sizeof(p[0]);
+
+    /* Step 1: lowest point (leftmost if tie) goes to p[0] */
+    int mn=0;
+    for(int i=1;i&lt;n;i++)
+        if(p[i].y&lt;p[mn].y || (p[i].y==p[mn].y &amp;&amp; p[i].x&lt;p[mn].x)) mn=i;
+    Point t=p[0]; p[0]=p[mn]; p[mn]=t;
+    p0=p[0];
+
+    /* Step 2: sort the remaining points by polar angle around p0 */
+    qsort(p+1,n-1,sizeof(Point),cmp);
+
+    /* Step 2b: for equal angles keep only the farthest point */
+    int m=1;
+    for(int i=1;i&lt;n;i++){
+        while(i&lt;n-1 &amp;&amp; cross(p0,p[i],p[i+1])==0) i++;
+        p[m++]=p[i];
+    }
+
+    if(m&lt;3){ printf(&quot;Convex hull not possible\n&quot;); return 0; }
+
+    /* Step 3: scan with a stack */
+    Point st[200];
+    int top=-1;
+    st[++top]=p[0]; st[++top]=p[1]; st[++top]=p[2];
+    for(int i=3;i&lt;m;i++){
+        while(top&gt;=1 &amp;&amp; cross(st[top-1],st[top],p[i])&lt;=0) top--;   /* non-left turn: pop */
+        st[++top]=p[i];
+    }
+
+    printf(&quot;Convex Hull (Graham Scan), counter-clockwise:\n&quot;);
+    for(int i=0;i&lt;=top;i++) printf(&quot;(%d, %d)\n&quot;,st[i].x,st[i].y);
+    return 0;
+}
+</code></pre></section>
+<section class="card "><h2>Sample Input / Output</h2><div class="io"><div><h3>Sample Input</h3><pre class="plain">points = {(0,3), (1,1), (2,2), (4,4), (0,0), (1,2), (3,1), (3,3)}</pre></div><div><h3>Sample Output (A and B)</h3><pre class="plain">Convex Hull (Graham Scan), counter-clockwise:
+(0, 0)
+(3, 1)
+(4, 4)
+(0, 3)
+</pre></div></div><p style="margin-top:10px;color:var(--muted);font-size:.9rem">Both programs print the same hull, starting from the lowest point and moving counter-clockwise. The points (1,1), (2,2), (1,2) and (3,3) lie inside the hull.</p></section>
+<section class="card "><h2>Time Complexity</h2><table><tr><th>Algorithm</th><th>Best</th><th>Average</th><th>Worst</th></tr><tr><td>Divide &amp; Conquer (QuickHull)</td><td>O(n log n)</td><td>O(n log n)</td><td>O(n²) – very unbalanced splits</td></tr><tr><td>Graham Scan</td><td>O(n log n)</td><td>O(n log n)</td><td>O(n log n)</td></tr></table><p style="margin-top:10px;color:var(--muted);font-size:.9rem">In Graham Scan the sort costs O(n log n) and the scan is O(n), because every point is pushed once and popped at most once.</p></section>
+<section class="card "><h2>Space Complexity</h2><p>Divide &amp; Conquer: O(n) for the point subsets (plus O(log n) recursion stack on balanced splits). Graham Scan: O(n) for the stack.</p></section>
+<section class="card "><h2>Recurrence Relation</h2><p class='rec'>Divide &amp; Conquer (QuickHull): balanced split T(n) = 2T(n/2) + n ⇒ O(n log n). Worst split T(n) = T(n-1) + n ⇒ O(n²).<br>Graham Scan: T(n) = O(n log n) [sort] + O(n) [scan] ⇒ O(n log n)</p></section>
+<section class="card "><h2>Generalised Code (Short Version)</h2><div class="codehead"><span>Part A: generalised short version</span><button class="copy">Copy</button></div><pre><code class="lang-c">#include&lt;stdio.h&gt;
+typedef struct{int x,y;}P;
+P h[50];int m;
+long cr(P o,P a,P b){return (long)(a.x-o.x)*(b.y-o.y)-(long)(a.y-o.y)*(b.x-o.x);}
+long d2(P a,P b){return (long)(a.x-b.x)*(a.x-b.x)+(long)(a.y-b.y)*(a.y-b.y);}
+void fh(P s[],int n,P a,P b){
+    int c=-1;
+    for(int i=0;i&lt;n;i++) if(cr(a,b,s[i])&lt;0 &amp;&amp; (c&lt;0||cr(a,b,s[i])&lt;cr(a,b,s[c])||(cr(a,b,s[i])==cr(a,b,s[c])&amp;&amp;d2(a,s[i])&gt;d2(a,s[c])))) c=i;
+    if(c&lt;0) return;
+    P l[50],r[50],C=s[c];int nl=0,nr=0;
+    for(int i=0;i&lt;n;i++){ if(cr(a,C,s[i])&lt;0) l[nl++]=s[i]; else if(cr(C,b,s[i])&lt;0) r[nr++]=s[i]; }
+    fh(l,nl,a,C); h[m++]=C; fh(r,nr,C,b);
+}
+int main(){
+    P p[]={{0,3},{1,1},{2,2},{4,4},{0,0},{1,2},{3,1},{3,3}};int n=8,a=0,b=0;
+    for(int i=1;i&lt;n;i++){ if(p[i].x&lt;p[a].x||(p[i].x==p[a].x&amp;&amp;p[i].y&lt;p[a].y)) a=i; if(p[i].x&gt;p[b].x||(p[i].x==p[b].x&amp;&amp;p[i].y&gt;p[b].y)) b=i; }
+    h[m++]=p[a]; fh(p,n,p[a],p[b]); h[m++]=p[b]; fh(p,n,p[b],p[a]);
+    for(int i=0;i&lt;m;i++) printf(&quot;(%d, %d)\n&quot;,h[i].x,h[i].y);
+}</code></pre><h3>Output</h3><pre class="plain">(0, 0)
+(3, 1)
+(4, 4)
+(0, 3)
+</pre><br><div class="codehead"><span>Part B: generalised short version</span><button class="copy">Copy</button></div><pre><code class="lang-c">#include&lt;stdio.h&gt;
+#include&lt;stdlib.h&gt;
+typedef struct{int x,y;}P;
+P o;
+long cr(P o,P a,P b){return (long)(a.x-o.x)*(b.y-o.y)-(long)(a.y-o.y)*(b.x-o.x);}
+long d2(P a,P b){return (long)(a.x-b.x)*(a.x-b.x)+(long)(a.y-b.y)*(a.y-b.y);}
+int cmp(const void*u,const void*v){
+    P a=*(P*)u,b=*(P*)v; long c=cr(o,a,b);
+    return c? (c&gt;0?-1:1) : (d2(o,a)&lt;d2(o,b)?-1:1);
+}
+int main(){
+    P p[]={{0,3},{1,1},{2,2},{4,4},{0,0},{1,2},{3,1},{3,3}},s[20],t;int n=8,k=0,j=0;
+    for(int i=1;i&lt;n;i++) if(p[i].y&lt;p[j].y||(p[i].y==p[j].y&amp;&amp;p[i].x&lt;p[j].x)) j=i;
+    t=p[0];p[0]=p[j];p[j]=t;o=p[0];
+    qsort(p+1,n-1,sizeof(P),cmp);
+    for(int i=0;i&lt;n;i++){
+        while(k&gt;=2&amp;&amp;cr(s[k-2],s[k-1],p[i])&lt;=0) k--;
+        s[k++]=p[i];
+    }
+    for(int i=0;i&lt;k;i++) printf(&quot;(%d, %d)\n&quot;,s[i].x,s[i].y);
+}</code></pre><h3>Output</h3><pre class="plain">(0, 0)
+(3, 1)
+(4, 4)
+(0, 3)
+</pre><p style="margin-top:10px;color:var(--muted);font-size:.9rem">Part A’s short version starts from the leftmost point, so its output is the same hull in the same counter-clockwise order, just rotated.</p></section>
+<div class="pager"><a class="btn" href="quick-sort.html">← Prev</a><a class="btn" href="../index.html">☰ All experiments</a><span></span></div></main><script src="../script.js"></script></body></html>
